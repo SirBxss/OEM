@@ -1,0 +1,11 @@
+OEM/
+├── data/
+│   └── (Place your .ply files here)
+├── src/
+│   ├── dataset.py       # For loading and preprocessing .ply files
+│   ├── model.py         # DGCNN model definition
+│   ├── train.py         # Training loop and argument parsing
+│   └── utils.py         # (Optional) Utility functions for augmentation, metrics, etc.
+├── environment.yml      # Conda environment specification (optional)
+├── requirements.txt     # Pip requirements (optional)
+└── README.md            # Project overview and instructions
