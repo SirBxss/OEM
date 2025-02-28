@@ -19,7 +19,7 @@ def train(args):
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
     # 3. Training Loop
-    for epoch in range(args.epochs):
+    """for epoch in range(args.epochs):
         model.train()
         total_loss = 0.0
 
@@ -32,6 +32,44 @@ def train(args):
             loss.backward()
             optimizer.step()
 
+            total_loss += loss.item()
+
+        avg_loss = total_loss / len(train_loader)
+        print(f"Epoch [{epoch + 1}/{args.epochs}] - Loss: {avg_loss:.4f}")"""
+
+    for epoch in range(args.epochs):
+        model.train()
+        total_loss = 0.0
+        for points, labels in train_loader:
+            points, labels = points.to(args.device), labels.to(args.device)
+            optimizer.zero_grad()
+
+            # Forward pass
+            outputs = model(points)  # shape: (B, N, num_classes)
+            # Print output details for debugging
+            print("Outputs shape:", outputs.shape)
+
+            # Compute softmax probabilities and print their mean per sample
+            softmax_out = torch.softmax(outputs, dim=-1)  # shape: (B, N, num_classes)
+            # Average probability across points for each sample (should be near 0.5 for each class if not learning)
+            print("Mean softmax per sample:", softmax_out.mean(dim=1))
+
+            # Compute loss
+            loss = criterion(outputs.view(-1, args.num_classes), labels.view(-1))
+            print("Loss before backward:", loss.item())
+
+            # Backward pass
+            loss.backward()
+
+            # Check gradient norms for each parameter
+            for name, param in model.named_parameters():
+                if param.grad is not None:
+                    grad_norm = param.grad.norm().item()
+                    print(f"Gradient norm for {name}: {grad_norm}")
+                else:
+                    print(f"No gradient for {name}")
+
+            optimizer.step()
             total_loss += loss.item()
 
         avg_loss = total_loss / len(train_loader)
