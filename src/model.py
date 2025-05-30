@@ -1,3 +1,4 @@
+'''
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -120,4 +121,154 @@ class DGCNN(nn.Module):
 
         # Final classification layer (per point)
         x_out = self.linear3(x_global)  # (B, N, num_classes)
-        return x_out
+        return x_out  '''
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+
+def knn(x, k):
+    # x: (B, C, N)
+    inner = -2 * torch.matmul(x.transpose(2, 1), x)      # (B, N, N)
+    xx = torch.sum(x ** 2, dim=1, keepdim=True)           # (B, 1, N)
+    pairwise_distance = -xx - inner - xx.transpose(2, 1)  # (B, N, N)
+    idx = pairwise_distance.topk(k=k, dim=-1)[1]          # (B, N, k)
+    return idx
+
+
+def get_graph_feature(x, k=20):
+    # x: (B, C, N)
+    batch_size, num_dims, num_points = x.size()
+    idx = knn(x, k=k)  # (B, N, k)
+
+    device = x.device
+    idx_base = torch.arange(0, batch_size, device=device) \
+                   .view(-1, 1, 1) * num_points
+    idx = (idx + idx_base).view(-1)
+
+    x_flat = x.transpose(2, 1).contiguous()  # (B, N, C)
+    feature = x_flat.view(batch_size * num_points, -1)[idx, :]
+    feature = feature.view(batch_size, num_points, k, num_dims)
+
+    x_central = x_flat.view(batch_size, num_points, 1, num_dims) \
+                     .repeat(1, 1, k, 1)
+    # Concatenate (neighbor - central, central)
+    feature = torch.cat((feature - x_central, x_central), dim=3) \
+                   .permute(0, 3, 1, 2).contiguous()  # (B, 2*C, N, k)
+    return feature
+
+
+class DGCNN(nn.Module):
+    """Per-point segmentation network (plug vs background)."""
+    def __init__(self, k=20, emb_dims=256, dropout=0.0, num_classes=2):
+        super().__init__()
+        self.k = k
+
+        # EdgeConv layers
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(6,   64, 1), nn.BatchNorm2d(64),  nn.ReLU())
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(64*2,64, 1), nn.BatchNorm2d(64),  nn.ReLU())
+        self.conv3 = nn.Sequential(
+            nn.Conv2d(64*2,128,1), nn.BatchNorm2d(128), nn.ReLU())
+        self.conv4 = nn.Sequential(
+            nn.Conv2d(128*2,256,1),nn.BatchNorm2d(256), nn.ReLU())
+
+        # Fully connected for per-point logits
+        self.linear1 = nn.Linear(512, emb_dims)
+        #self.bn1      = nn.BatchNorm1d(emb_dims)
+        self.bn1      = nn.Identity()
+        #self.dp1      = nn.Dropout(dropout)
+        self.dp1      = nn.Dropout(p=0.0)
+        self.linear2 = nn.Linear(emb_dims, 256)
+        #self.bn2     = nn.BatchNorm1d(256)
+        self.bn2     = nn.Identity()
+        #self.dp2     = nn.Dropout(dropout)
+        self.dp2     = nn.Dropout(p=0.0)
+        self.linear3 = nn.Linear(256, num_classes)
+
+    def forward(self, x):
+        # x: (B, N, 3) -> (B, 3, N)
+        x = x.transpose(2, 1)
+        # EdgeConv 1
+        x1 = self.conv1(get_graph_feature(x, self.k)).max(-1)[0]  # (B,64,N)
+        # EdgeConv 2
+        x2 = self.conv2(get_graph_feature(x1, self.k)).max(-1)[0] # (B,64,N)
+        # EdgeConv 3
+        x3 = self.conv3(get_graph_feature(x2, self.k)).max(-1)[0] # (B,128,N)
+        # EdgeConv 4
+        x4 = self.conv4(get_graph_feature(x3, self.k)).max(-1)[0] # (B,256,N)
+
+        # Multi-scale concat
+        x_cat = torch.cat((x1, x2, x3, x4), dim=1)  # (B,512,N)
+        x_cat = x_cat.transpose(2, 1)               # (B,N,512)
+
+        # FC layers (per point)
+        x = self.linear1(x_cat)                # (B,N,emb_dims)
+        x = x.transpose(1,2)                   # (B,emb_dims,N)
+        x = self.bn1(x); x = F.relu(x); x = self.dp1(x)
+        x = x.transpose(1,2)                   # (B,N,emb_dims)
+
+        x = self.linear2(x)                    # (B,N,256)
+        x = x.transpose(1,2)
+        x = self.bn2(x); x = F.relu(x); x = self.dp2(x)
+        x = x.transpose(1,2)                   # (B,N,256)
+
+        logits = self.linear3(x)               # (B,N,num_classes)
+        return logits
+
+
+class DGCNN_Backbone(nn.Module):
+    """Same EdgeConv backbone, returns concatenated features (B,512,N)."""
+    def __init__(self, k=20):
+        super().__init__()
+        self.k = k
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(6,   64, 1), nn.BatchNorm2d(64),  nn.ReLU())
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(64*2,64, 1), nn.BatchNorm2d(64),  nn.ReLU())
+        self.conv3 = nn.Sequential(
+            nn.Conv2d(64*2,128,1), nn.BatchNorm2d(128), nn.ReLU())
+        self.conv4 = nn.Sequential(
+            nn.Conv2d(128*2,256,1),nn.BatchNorm2d(256), nn.ReLU())
+
+    def forward(self, x):
+        # x: (B,N,3) -> (B,3,N)
+        x = x.transpose(2, 1)
+        x1 = self.conv1(get_graph_feature(x, self.k)).max(-1)[0]
+        x2 = self.conv2(get_graph_feature(x1, self.k)).max(-1)[0]
+        x3 = self.conv3(get_graph_feature(x2, self.k)).max(-1)[0]
+        x4 = self.conv4(get_graph_feature(x3, self.k)).max(-1)[0]
+        x_cat = torch.cat((x1, x2, x3, x4), dim=1)  # (B,512,N)
+        return x_cat
+
+
+class DGCNNPose(nn.Module):
+    """6-DoF pose regression: outputs (quaternion, translation)."""
+    def __init__(self, k=20, dropout=0.5):
+        super().__init__()
+        self.backbone = DGCNN_Backbone(k=k)
+        self.fc1 = nn.Linear(512, 256)
+        self.dp1 = nn.Dropout(dropout)
+        self.fc2 = nn.Linear(256, 128)
+        self.dp2 = nn.Dropout(dropout)
+        # Heads
+        self.fc_rot   = nn.Linear(128, 4)   # quaternion (x,y,z,w)
+        self.fc_trans = nn.Linear(128, 3)   # translation (x,y,z)
+
+    def forward(self, x):
+        # x: (B,N,3)
+        x_cat = self.backbone(x)               # (B,512,N)
+        x_g, _ = torch.max(x_cat, dim=-1)      # (B,512)
+        h = F.relu(self.fc1(x_g))
+        h = self.dp1(h)
+        h = F.relu(self.fc2(h))
+        h = self.dp2(h)
+        # Rotation head
+        quat = self.fc_rot(h)                  # (B,4)
+        quat = quat / (quat.norm(dim=1, keepdim=True) + 1e-8)
+        # Translation head
+        trans = self.fc_trans(h)               # (B,3)
+        return quat, trans
+

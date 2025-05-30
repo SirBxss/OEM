@@ -1,5 +1,5 @@
 # src/train.py
-
+'''
 import torch
 import argparse
 from torch.utils.data import DataLoader
@@ -89,4 +89,129 @@ if __name__ == "__main__":
                         help="Device to use for training (cuda or cpu).")
 
     args = parser.parse_args()
+    train(args) '''
+
+# src/train.py
+
+
+#Second Version
+
+import argparse
+import torch
+import torch.nn.functional as F
+from torch.utils.data import DataLoader
+from dataset import PointCloudDataset
+from model import DGCNN
+
+def train(args):
+    # 1) Build dataset + loader
+    dataset = PointCloudDataset(
+        ply_file_paths=args.train_files,
+        num_points=args.num_points,
+        transform=None
+    )
+    loader = DataLoader(
+        dataset,
+        batch_size=args.batch_size,
+        shuffle=True,
+        num_workers=args.num_workers,
+        pin_memory=True
+    )
+
+    # 2) Model, loss & optimizer
+    device = torch.device(args.device)
+    model = DGCNN(
+        k=args.k,
+        emb_dims=args.emb_dims,
+        dropout=args.dropout,
+        num_classes=args.num_classes
+    ).to(device)
+    criterion = torch.nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+
+    # 3) Training loop
+    for epoch in range(1, args.epochs + 1):
+        model.train()
+        total_loss = 0.0
+        running_correct = 0
+        running_total = 0
+
+        for points, labels in loader:
+            points = points.to(device)
+            labels = labels.to(device)
+
+            optimizer.zero_grad()
+            logits = model(points)
+            loss = criterion(
+                logits.view(-1, args.num_classes),
+                labels.view(-1)
+            )
+            loss.backward()
+            optimizer.step()
+            total_loss += loss.item()
+
+            # accuracy
+            preds = logits.argmax(dim=-1)
+            running_correct += (preds == labels).sum().item()
+            running_total += preds.numel()
+
+        avg_loss = total_loss / len(loader)
+        epoch_acc = running_correct / running_total
+        print(f"Epoch [{epoch}/{args.epochs}]  "
+              f"Loss: {avg_loss:.4f}  Acc: {epoch_acc:.4f}")
+
+
+if __name__ == "__main__":
+    p = argparse.ArgumentParser(description="Train DGCNN for point-cloud segmentation")
+    p.add_argument(
+        "--train_files", nargs="+", required=True,
+        help="List of .ply files for training"
+    )
+    p.add_argument(
+        "--k", type=int, default=20,
+        help="Number of neighbors for graph construction"
+    )
+    p.add_argument(
+        "--num_points", type=int, default=2048,
+        help="Fixed number of points sampled per cloud"
+    )
+    p.add_argument(
+        "--emb_dims", type=int, default=1024,
+        help="Embedding dimension after graph convs"
+    )
+    p.add_argument(
+        "--dropout", type=float, default=0.5,
+        help="Dropout rate in the fully connected layers"
+    )
+    p.add_argument(
+        "--num_classes", type=int, default=2,
+        help="Number of segmentation classes"
+    )
+    p.add_argument(
+        "--batch_size", type=int, default=4,
+        help="Training batch size"
+    )
+    p.add_argument(
+        "--num_workers", type=int, default=4,
+        help="Number of DataLoader worker processes"
+    )
+    p.add_argument(
+        "--lr", type=float, default=1e-3,
+        help="Learning rate for Adam optimizer"
+    )
+    p.add_argument(
+        "--epochs", type=int, default=20,
+        help="Number of training epochs"
+    )
+    p.add_argument(
+        "--device", type=str,
+        default="cuda" if torch.cuda.is_available() else "cpu",
+        help="Device to train on (cuda or cpu)"
+    )
+
+    args = p.parse_args()
     train(args)
+
+
+
+
