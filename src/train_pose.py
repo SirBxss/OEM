@@ -36,7 +36,7 @@ def train(args):
         pin_memory=True
     )
 
-    # 2) Model, optimizer
+    # 2) Model, optimizer, DGCNN
     device = torch.device(args.device)
     model = DGCNNPose(
         k=args.k,
