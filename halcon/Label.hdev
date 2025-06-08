@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hdevelop file_version="1.2" halcon_version="24.11.1.0">
+<procedure name="main">
+<interface/>
+<body>
+<c>*-------------------------------------------------------------------------</c>
+<c>* Define input and output folder paths</c>
+<c>*-------------------------------------------------------------------------</c>
+<l>InputFolder := 'D:/Master/Project/FAPS/Data/om3Files'</l>
+<l>OutputFolder := 'D:/Master/Project/FAPS/Labeled'</l>
+<c></c>
+<c>*-------------------------------------------------------------------------</c>
+<c>* Load the pre-trained surface model for the plug (loaded once for all files)</c>
+<c>*-------------------------------------------------------------------------</c>
+<l>read_surface_model('plug_surface.sfm', SurfaceModelID1)</l>
+<c></c>
+<c>*-------------------------------------------------------------------------</c>
+<c>* List all .om3 files in the input folder</c>
+<c>*-------------------------------------------------------------------------</c>
+<l>*list_files(InputFolder, '/*.om3', FileList)</l>
+<c></c>
+<c></c>
+<l>*file_exists(InputFolder, DirExists)</l>
+<l>*if (DirExists = 0)</l>
+<l>*    dev_disp_text('Input folder does not exist from HALCON''s perspective!', 'window', 0, 0, 'red', [], [])</l>
+<l>*else</l>
+<l>*    dev_disp_text('Input folder found. IsDirectory = ' + 3, 'window', 0, 0, 'green', [], [])</l>
+<l>*endif</l>
+<c></c>
+<c></c>
+<l>*Pattern := InputFolder + '/*.om3'</l>
+<l>list_files(InputFolder, 'files', FileList)</l>
+<c></c>
+<l>tuple_length(FileList, NumFiles)</l>
+<c></c>
+<c>*-------------------------------------------------------------------------</c>
+<c>* Loop over each .om3 file</c>
+<c>*-------------------------------------------------------------------------</c>
+<l>for i := 0 to NumFiles - 1 by 1</l>
+<c>    * Get the full path for the current file</c>
+<l>    CurrentFile := FileList[i]</l>
+<c>    </c>
+<c>    * Optionally split the file name to use for the output file name</c>
+<c>    *filename_split(CurrentFile, PathPart, FileName, Extension)</c>
+<c>    </c>
+<c>    *-------------------------------------------------------------------------</c>
+<c>    * Read the scene point cloud from the .om3 file</c>
+<c>    *-------------------------------------------------------------------------</c>
+<l>    read_object_model_3d(CurrentFile, 'm', [], [], ObjectSceneModel3D, Status)</l>
+<c>    </c>
+<c>    *-------------------------------------------------------------------------</c>
+<c>    * Detect the plug in the point cloud using the surface model</c>
+<c>    *-------------------------------------------------------------------------</c>
+<l>    find_Para_Names := ['3d_edge_min_amplitude_abs', 'max_gap', 'use_3d_edges', 'viewpoint']</l>
+<l>    find_Para_Values := [0.84709, 5, 'true', '0.239379 3.0235 254.803']</l>
+<l>    find_surface_model(SurfaceModelID1, ObjectSceneModel3D, 0.03, 1, 0.15, 'true', find_Para_Names, find_Para_Values, ObjInCamPose, Score, SurfaceMatchingResultID)</l>
+<c></c>
+<c>    *-------------------------------------------------------------------------</c>
+<c>    * Extract the plug points from the detected object</c>
+<c>    *-------------------------------------------------------------------------</c>
+<l>    sample_object_model_3d(ObjectSceneModel3D, 'fast', 0.05, [], [], PlugPoints3D)</l>
+<c>    </c>
+<c>    *-------------------------------------------------------------------------</c>
+<c>    * Get coordinates for the full scene and the plug points</c>
+<c>    *-------------------------------------------------------------------------</c>
+<l>    get_object_model_3d_params(ObjectSceneModel3D, 'point_coord_x', XFull)</l>
+<l>    get_object_model_3d_params(ObjectSceneModel3D, 'point_coord_y', YFull)</l>
+<l>    get_object_model_3d_params(ObjectSceneModel3D, 'point_coord_z', ZFull)</l>
+<c>    </c>
+<l>    get_object_model_3d_params(PlugPoints3D, 'point_coord_x', XPlug)</l>
+<l>    get_object_model_3d_params(PlugPoints3D, 'point_coord_y', YPlug)</l>
+<l>    get_object_model_3d_params(PlugPoints3D, 'point_coord_z', ZPlug)</l>
+<c>    </c>
+<c>    *-------------------------------------------------------------------------</c>
+<c>    * Remove plug points from the full point cloud to obtain the background</c>
+<c>    *-------------------------------------------------------------------------</c>
+<l>    tuple_length(XPlug, LengthPlug)</l>
+<l>    tuple_gen_const(LengthPlug, 1, PlugLabels)</l>
+<c>    </c>
+<l>    tuple_find(XFull, XPlug, XIndices)</l>
+<l>    tuple_find(YFull, YPlug, YIndices)</l>
+<l>    tuple_find(ZFull, ZPlug, ZIndices)</l>
+<c>    </c>
+<l>    tuple_remove(XFull, XIndices, XBackground)</l>
+<l>    tuple_remove(YFull, YIndices, YBackground)</l>
+<l>    tuple_remove(ZFull, ZIndices, ZBackground)</l>
+<c>    </c>
+<c>    * Create a new object model for the background points</c>
+<l>    gen_object_model_3d_from_points(XBackground, YBackground, ZBackground, BackgroundPoints3D)</l>
+<c>    </c>
+<c>    *-------------------------------------------------------------------------</c>
+<c>    * Assign labels:</c>
+<c>    *   Plug points are labeled with 1</c>
+<c>    *   Background points are labeled with 0</c>
+<c>    *-------------------------------------------------------------------------</c>
+<l>    set_object_model_3d_attrib(PlugPoints3D, '&amp;my_labels', 'points', PlugLabels, LabeledPlugPoints3D)</l>
+<c>    </c>
+<l>    tuple_length(XBackground, LengthBackground)</l>
+<l>    tuple_gen_const(LengthBackground, 0, BackgroundLabels)</l>
+<l>    set_object_model_3d_attrib(BackgroundPoints3D, '&amp;my_labels', 'points', BackgroundLabels, LabeledBackgroundPoints3D)</l>
+<c>    </c>
+<c>    *-------------------------------------------------------------------------</c>
+<c>    * Combine the labeled plug and background point clouds</c>
+<c>    *-------------------------------------------------------------------------</c>
+<l>    get_object_model_3d_params(LabeledPlugPoints3D, 'point_coord_x', XPlugLabeled)</l>
+<l>    get_object_model_3d_params(LabeledPlugPoints3D, 'point_coord_y', YPlugLabeled)</l>
+<l>    get_object_model_3d_params(LabeledPlugPoints3D, 'point_coord_z', ZPlugLabeled)</l>
+<c>    </c>
+<l>    get_object_model_3d_params(LabeledBackgroundPoints3D, 'point_coord_x', XBackgroundLabeled)</l>
+<l>    get_object_model_3d_params(LabeledBackgroundPoints3D, 'point_coord_y', YBackgroundLabeled)</l>
+<l>    get_object_model_3d_params(LabeledBackgroundPoints3D, 'point_coord_z', ZBackgroundLabeled)</l>
+<c>    </c>
+<l>    tuple_concat(XPlugLabeled, XBackgroundLabeled, XCombined)</l>
+<l>    tuple_concat(YPlugLabeled, YBackgroundLabeled, YCombined)</l>
+<l>    tuple_concat(ZPlugLabeled, ZBackgroundLabeled, ZCombined)</l>
+<c>    </c>
+<l>    tuple_concat(PlugLabels, BackgroundLabels, CombinedLabels)</l>
+<c>    </c>
+<l>    gen_object_model_3d_from_points(XCombined, YCombined, ZCombined, CombinedModel3D)</l>
+<l>    set_object_model_3d_attrib(CombinedModel3D, '&amp;my_labels', 'points', CombinedLabels, LabeledSceneModel3D)</l>
+<c>    </c>
+<c>    *---------------------------------------------------------------------</c>
+<c>    * 4.8) Save the labeled point cloud</c>
+<c>    *      (Use string replace instead of filename_split)</c>
+<c>    *---------------------------------------------------------------------</c>
+<l>    OutFile := CurrentFile</l>
+<c>    * Replace the input folder path with the output folder path</c>
+<l>    tuple_str_replace(OutFile, 'D:/Master/Project 1/FAPS/Data/om3Files', 'D:/Master/Project 1/FAPS/Labeled', OutFile)</l>
+<c>    * Replace the .om3 extension with .ply</c>
+<l>    tuple_str_replace(OutFile, '.om3', '.ply', OutFile)</l>
+<c>    </c>
+<c>    * Now OutFile is something like:</c>
+<c>    * "D:/Master/Project 1/FAPS/Labeled/my_original_filename.ply"</c>
+<l>    write_object_model_3d(LabeledSceneModel3D, 'ply', OutFile, [], [])</l>
+<c>    </c>
+<l>endfor</l>
+<c></c>
+</body>
+<docu id="main">
+<parameters/>
+</docu>
+</procedure>
+</hdevelop>

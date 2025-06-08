@@ -1,0 +1,473 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hdevelop file_version="1.2" halcon_version="24.05.0.0">
+<procedure name="main">
+<interface/>
+<body>
+<c>* here this operator Acq_Scene_model_3D  enable Surface Control 3D camera</c>
+<c>* have settings to adjust point cloud.</c>
+<c>* to change exposure and more settings right click and show procedure</c>
+<l>*count_seconds(Start)</l>
+<c></c>
+<l>*Acq_Scene_model_3D (Images, Region, Contours, Image3DZ, ImageMedian, ImageMask, Image3DZReduced, Image3DX, Image3DY, Second1, AcqHandle, SelectedModel, MeasurementRange, SelectedFirmware, width, height, scale_x, offset_x, scale_y, offset_y, Data, ObjectSceneModel3D1, SmoothParamNames, SmoothParamValues, ObjectSceneModel3D)</l>
+<c></c>
+<l>*count_seconds(End)</l>
+<l>*Seconds_Acq := End - Start</l>
+<c>***************************************************Visualize***********************************************************</c>
+<c>* in this section 3d point cloud is visualized in a window</c>
+<c>* right now it is commented to visuaize point cloud uncomment this section</c>
+<c>*</c>
+<l> *dev_open_window (200, width, width, height, 'black', WindowHandle3D) </l>
+<l>* GenParamNames := ['light_position', 'color_attrib', 'lut']</l>
+<l>*  GenParamValues := ['100.0 100.0 0.0 1.0', 'coord_z', 'color1']</l>
+<l>* visualize_object_model_3d(WindowHandle3D, ObjectSceneModel3D, [], [], GenParamNames, GenParamValues, [], [], [], PoseOut)</l>
+<c> *</c>
+<l>*close_framegrabber (AcqHandle)</l>
+<c></c>
+<c>***************************************************Reading SurfaceModel************************************************</c>
+<c>* here we have to give plug numbers which is to be find within point cloud(ObjectSceneModel3D).</c>
+<c>* here i find plug 2 and 3 for this script.</c>
+<c>* if we want to change than change the number according to plug name.</c>
+<c>* read_object_modei_3d operator reads object model which is already created in below specified</c>
+<c>* folder :- D:/cad models/plug.</c>
+<l>Plug := 1</l>
+<l>read_object_model_3d ('plug1.stl', 'm', [], [], ObjectModel3D1, Status)</l>
+<l>read_object_model_3d('Image.om3', 'm',[],[], ObjectSceneModel3D, Status3D)</l>
+<c></c>
+<c>****************************************************SurfaceModel creation***********************************************</c>
+<c>* If we dont have surface models for plugs than it is to be created here in this section. </c>
+<c>* This operator create_surface_model creates surface models and takes 30 secends for each plugs.</c>
+<c>*</c>
+<l>*create_surface_model (ObjectModel3D1, 0.01, 'train_3d_edges', 'true', SurfaceModelID1)</l>
+<c></c>
+<c>*</c>
+<c>****************************************************SurfaceModel from folder*********************************************</c>
+<c>* It is recommended to use already created surface model to reduce 30 seconds for each plug.</c>
+<c>* Here read_surface_model operator reads surface models which is already created in below </c>
+<c>* specified folder :- D:/NEXT2OEM/Surface Models/Plug_Part. </c>
+<c></c>
+<l>Plug := 1</l>
+<l>read_surface_model ('plug_surface.sfm', SurfaceModelID1)</l>
+<c></c>
+<c></c>
+<l>get_surface_model_param (SurfaceModelID1, 'sampled_model', SampledModel4)</l>
+<l>get_surface_model_param (SurfaceModelID1, '3d_edges_trained', Edges_3D4)</l>
+<c></c>
+<c></c>
+<c></c>
+<c>***************************************************Shape Detection******************************************************</c>
+<c>* here plug position detection takes palce.</c>
+<c>* find_surface_model operator finds surface models of plug in ObjectSceneModel3D ( Piont Cloud ).</c>
+<c>* This opereator gives 6DOF pose of the plug from the point cloud.</c>
+<c></c>
+<c></c>
+<c>* finding parameter name and its values</c>
+<l>find_Para_Names  := ['3d_edge_min_amplitude_abs', 'max_gap', 'use_3d_edges', 'viewpoint']</l>
+<l>find_Para_Values := [0.84709, 5, 'true', '0.239379 3.0235 254.803']</l>
+<l>find_surface_model (SurfaceModelID1, ObjectSceneModel3D, 0.03, 1, 0.15, 'true', find_Para_Names, find_Para_Values, ObjInCamPose, Score1, SurfaceMatchingResultID1)</l>
+<l>*write_object_model_3d(ObjectSceneModel3D, 'om3', 'Image.om3', [], [])</l>
+<l>*count_seconds (Second2)</l>
+<l>*Time := Second2 - Second1</l>
+<c></c>
+<c>* here debug_find_surface_model operator use for changing perameters.</c>
+<c>* simply uncomment this lines for both plugs to change matching results.</c>
+<l> debug_find_surface_model (SurfaceModelID1, ObjectModel3D1, ObjectSceneModel3D, SurfaceMatchingResultID1, CreateSurfaceModelParamName, CreateSurfaceModelParamValue, FindSurfaceModelParamName, FindSurfaceModelParamValue)</l>
+<c></c>
+<l>   * create_matrix (7, 1, Pose1, MatrixID1)</l>
+<c></c>
+<l>   * clear_matrix (MatrixID1)</l>
+<c>    </c>
+<c>* Here this write_pose operator use for generating TEXT file of the derived pose.</c>
+<c>* change location of the folder to change it with extention to change formet also.</c>
+<l>write_pose (ObjInCamPose, 'Pose_Cam_plug1.dat')</l>
+<c></c>
+<c>********************************************Calculate Pose**************************************************************</c>
+<c></c>
+<c>* read robot pose writen by hand_eye_create_robot_poses (pose of robot in world coordinate system)</c>
+<l> read_pose ('robot_pose.dat', ToolInBasePose_conv)</l>
+<l> convert_pose_type(ToolInBasePose_conv, 'Rp+T', 'gba', 'point', ToolInBasePose_acq)</l>
+<c></c>
+<c>* read pose acquired by calibration</c>
+<l>read_pose('calib_pose.dat', ToolInCamPose)</l>
+<c></c>
+<c>* read pose of gripper in tool frame (Greifer zu Werkzeugflansch) </c>
+<l>read_pose('gripper_pose.dat', GripperInToolPose)</l>
+<c></c>
+<c></c>
+<c></c>
+<c>* calculate the position of the object in Camera coordinates</c>
+<l>*pose_invert(Pose1, ObjInCamPose)</l>
+<l>pose_invert(ToolInCamPose, CamInToolPose)</l>
+<l>pose_invert(GripperInToolPose, ToolInGripper)</l>
+<c></c>
+<l>pose_compose(ToolInBasePose_acq, CamInToolPose, CamInBasePose)</l>
+<c></c>
+<l>pose_compose(CamInBasePose, ObjInCamPose, ObjInBasePose)</l>
+<c></c>
+<l>pose_compose(ObjInBasePose, ToolInGripper, ToolInBasePose_grip)</l>
+<c></c>
+<l>write_pose(ToolInBasePose_grip, 'obj_inRobCoord.txt')</l>
+<c></c>
+<c></c>
+<c></c>
+<c>********************************************Visualization**************************************************************</c>
+<c>* here visualization take place with operator visualize_object_model_3d.</c>
+<c>* We need to create a seperate window for this visualization.</c>
+<c>* Rigid_trans_object_model_3d place object model to the exact derived pose in the SceneModel ( Point Cloud )</c>
+<l> *dev_open_window_fit_size (0, 0, 800, 600, -1, -1, WindowHandleCompare)</l>
+<c></c>
+<c>* Visualization parameter name and its values</c>
+<l> *VisuParaName  := ['color_attrib_0', 'lut_0', 'alpha']</l>
+<l> *VisuParaValue := ['coord_z', 'rainbow', 0.8]</l>
+<l> *rigid_trans_object_model_3d ([ObjectModel3D1], Pose1, ObjectModel3DRigidTrans1)</l>
+<l> *visualize_object_model_3d (WindowHandleCompare, [ObjectSceneModel3D, ObjectModel3DRigidTrans1], [], Pose1, VisuParaName, VisuParaValue, [], [], [], PoseVisualization)</l>
+<c></c>
+<c></c>
+</body>
+<docu id="main">
+<parameters/>
+</docu>
+</procedure>
+<procedure name="Settings_NEXT2OEM">
+<interface>
+<oo>
+<par name="Images" base_type="iconic" dimension="0"/>
+<par name="Region" base_type="iconic" dimension="0"/>
+<par name="Contours" base_type="iconic" dimension="0"/>
+</oo>
+<ic>
+<par name="AcqHandle" base_type="ctrl" dimension="0"/>
+</ic>
+<oc>
+<par name="width" base_type="ctrl" dimension="0"/>
+<par name="height" base_type="ctrl" dimension="0"/>
+<par name="scale_x" base_type="ctrl" dimension="0"/>
+<par name="offset_x" base_type="ctrl" dimension="0"/>
+<par name="scale_y" base_type="ctrl" dimension="0"/>
+<par name="offset_y" base_type="ctrl" dimension="0"/>
+<par name="Data" base_type="ctrl" dimension="0"/>
+</oc>
+</interface>
+<body>
+<c>* *******************************************Settings******************************************************</c>
+<c>* Disable Live</c>
+<l>set_framegrabber_param (AcqHandle, 'SourceSelector', 'Source1')</l>
+<l>set_framegrabber_param (AcqHandle, 'RegionSelector', 'Region0')</l>
+<c></c>
+<l>set_framegrabber_param (AcqHandle, 'ComponentSelector', 'Intensity')</l>
+<l>set_framegrabber_param (AcqHandle, 'ComponentEnable', 0)</l>
+<c></c>
+<l>set_framegrabber_param (AcqHandle, 'SourceSelector', 'Source2')</l>
+<l>set_framegrabber_param (AcqHandle, 'ComponentEnable', 0)</l>
+<c></c>
+<c>* Enable 3D</c>
+<l>set_framegrabber_param (AcqHandle, 'SourceSelector', 'Source0')</l>
+<l>set_framegrabber_param (AcqHandle, 'RegionSelector', 'Scan3dExtraction0')</l>
+<c></c>
+<l>set_framegrabber_param (AcqHandle, 'ComponentSelector', 'Range')</l>
+<l>set_framegrabber_param (AcqHandle, 'ComponentEnable', 1)</l>
+<c></c>
+<l>set_framegrabber_param (AcqHandle, 'PixelFormat', 'Coord3D_C32f')</l>
+<c></c>
+<l>get_framegrabber_param (AcqHandle, 'Width', width)</l>
+<l>get_framegrabber_param (AcqHandle, 'Height', height)</l>
+<c></c>
+<c>* Enable mask, InvalidDataValue is used for identifying invalid values</c>
+<l>set_framegrabber_param (AcqHandle, 'ComponentSelector', 'Confidence')</l>
+<l>set_framegrabber_param (AcqHandle, 'ComponentEnable', 1)</l>
+<c></c>
+<c>* Get scale and offset for x- and y- coordinates</c>
+<c>* Here X and Y image is created to create 3d point cloud</c>
+<l>set_framegrabber_param (AcqHandle, 'Scan3dCoordinateSelector', 'CoordinateA')</l>
+<l>get_framegrabber_param (AcqHandle, 'Scan3dCoordinateScale', scale_x)</l>
+<l>get_framegrabber_param (AcqHandle, 'Scan3dCoordinateOffset', offset_x)</l>
+<l>set_framegrabber_param (AcqHandle, 'Scan3dCoordinateSelector', 'CoordinateB')</l>
+<l>get_framegrabber_param (AcqHandle, 'Scan3dCoordinateScale', scale_y)</l>
+<l>get_framegrabber_param (AcqHandle, 'Scan3dCoordinateOffset', offset_y)</l>
+<c></c>
+<c>* Adjust Settings if needed</c>
+<c>* Exposure rate settings range between 1 to 200000</c>
+<l>set_framegrabber_param (AcqHandle, 'ExposureTime', 7500)</l>
+<c></c>
+<c>* Stream data via Stream0</c>
+<l>set_framegrabber_param (AcqHandle, 'SourceSelector', 'Source0')</l>
+<c></c>
+<c>* Enable Trigger</c>
+<c>* Here time out is 200000 (max)</c>
+<l>set_framegrabber_param (AcqHandle, 'TriggerMode', 'On')</l>
+<l>set_framegrabber_param (AcqHandle, 'AcquisitionMode', 'SingleFrame')</l>
+<l>set_framegrabber_param (AcqHandle, 'grab_timeout', 200000)</l>
+<c></c>
+<c>* *******************************************ImageAcquisition************************************************</c>
+<c>* Image acquisition</c>
+<c></c>
+<c></c>
+<l>grab_image_start (AcqHandle, -1)</l>
+<c></c>
+<l>set_framegrabber_param (AcqHandle, 'TriggerSoftware', 1)</l>
+<l>count_seconds(Start_img)</l>
+<l>grab_data_async (Images, Region, Contours, AcqHandle, -1, Data)</l>
+<c></c>
+<l>count_seconds(End_img)</l>
+<l>seconds_Img  := End_img - Start_img</l>
+<c></c>
+<l>dev_open_window (0, 0, 512, 512, 'black', WindowHandle)</l>
+<l>write_string (WindowHandle, seconds_Img)</l>
+<c></c>
+<l>return ()</l>
+</body>
+<docu id="Settings_NEXT2OEM">
+<parameters>
+<parameter id="AcqHandle"/>
+<parameter id="Contours"/>
+<parameter id="Data"/>
+<parameter id="Images"/>
+<parameter id="Region"/>
+<parameter id="height"/>
+<parameter id="offset_x"/>
+<parameter id="offset_y"/>
+<parameter id="scale_x"/>
+<parameter id="scale_y"/>
+<parameter id="width"/>
+</parameters>
+</docu>
+</procedure>
+<procedure name="Acq_Scene_model_3D">
+<interface>
+<oo>
+<par name="Images" base_type="iconic" dimension="0"/>
+<par name="Region" base_type="iconic" dimension="0"/>
+<par name="Contours" base_type="iconic" dimension="0"/>
+<par name="Image3DZ" base_type="iconic" dimension="0"/>
+<par name="ImageMedian" base_type="iconic" dimension="0"/>
+<par name="ImageMask" base_type="iconic" dimension="0"/>
+<par name="Image3DZReduced" base_type="iconic" dimension="0"/>
+<par name="Image3DX" base_type="iconic" dimension="0"/>
+<par name="Image3DY" base_type="iconic" dimension="0"/>
+</oo>
+<oc>
+<par name="Second1" base_type="ctrl" dimension="0"/>
+<par name="AcqHandle" base_type="ctrl" dimension="0"/>
+<par name="SelectedModel" base_type="ctrl" dimension="0"/>
+<par name="MeasurementRange" base_type="ctrl" dimension="0"/>
+<par name="SelectedFirmware" base_type="ctrl" dimension="0"/>
+<par name="width" base_type="ctrl" dimension="0"/>
+<par name="height" base_type="ctrl" dimension="0"/>
+<par name="scale_x" base_type="ctrl" dimension="0"/>
+<par name="offset_x" base_type="ctrl" dimension="0"/>
+<par name="scale_y" base_type="ctrl" dimension="0"/>
+<par name="offset_y" base_type="ctrl" dimension="0"/>
+<par name="Data" base_type="ctrl" dimension="0"/>
+<par name="ObjectSceneModel3D1" base_type="ctrl" dimension="0"/>
+<par name="SmoothParamNames" base_type="ctrl" dimension="0"/>
+<par name="SmoothParamValues" base_type="ctrl" dimension="0"/>
+<par name="ObjectSceneModel3D" base_type="ctrl" dimension="0"/>
+</oc>
+</interface>
+<body>
+<l>dev_update_off ()</l>
+<c></c>
+<c></c>
+<c>* *****************************************Connection*******************************************************************</c>
+<c></c>
+<c>* dynamic connection routine</c>
+<c>* Connection to the surface control device to the halcon</c>
+<c>* To adjust click to right click and go to show procedure</c>
+<c></c>
+<l>SurfaceControl_Connection_NEXT2OEM (0, AcqHandle, SelectedModel, MeasurementRange, SelectedFirmware)</l>
+<l>dev_close_window ()</l>
+<c></c>
+<c>* Settings t adjust Time and exposure rate</c>
+<c>* To adjust click to right click and go to show procedure</c>
+<l>Settings_NEXT2OEM (Images, Region, Contours, AcqHandle, width, height, scale_x, offset_x, scale_y, offset_y, Data)</l>
+<c></c>
+<c>* ************************************************ShowImages************************************************************</c>
+<c>* thresholding and filtering of captured image which is called Image3DZ</c>
+<l>select_obj (Images, Image3DZ, 1)</l>
+<c>* median filter to the image</c>
+<l>median_image (Images, ImageMedian, 'circle', 0.5, 'mirrored')</l>
+<c></c>
+<l>select_obj (ImageMedian, ImageMask, 2)</l>
+<c></c>
+<c>* Mask invalid points</c>
+<l>threshold (ImageMask, Region, 1, 'max')</l>
+<l>reduce_domain (ImageMedian, Region, Image3DZReduced)</l>
+<c></c>
+<c>* Generate x- and y- images for the 3d model</c>
+<l>gen_image_surface_first_order (Image3DX, 'real', 0.0, scale_x, offset_x, 0.0, 0.0, width, height)</l>
+<c></c>
+<l>gen_image_surface_first_order (Image3DY, 'real', scale_y, 0.0, offset_y, 0.0, 0.0, width, height)</l>
+<c></c>
+<c>* ***********************************************Create 3D Model********************************************************</c>
+<c>* Generate 3d point cloud of scene from combining X, Y and Z axis images</c>
+<l>xyz_to_object_model_3d (Image3DX, Image3DY, Image3DZReduced, ObjectSceneModel3D1)</l>
+<c></c>
+<c></c>
+<l>SmoothParamNames := ['mls_abs_sigma', 'mls_relative_sigma']</l>
+<l>SmoothParamValues := ['0.1', '0.1']</l>
+<c></c>
+<c>* smoothing of the generated point cloud to remove duplicate points</c>
+<l>smooth_object_model_3d (ObjectSceneModel3D1, 'mls', 'mls_relative_sigma', 0.5, ObjectSceneModel3D)</l>
+<l>return ()</l>
+</body>
+<docu id="Acq_Scene_model_3D">
+<parameters>
+<parameter id="AcqHandle"/>
+<parameter id="Contours"/>
+<parameter id="Data"/>
+<parameter id="Image3DX"/>
+<parameter id="Image3DY"/>
+<parameter id="Image3DZ"/>
+<parameter id="Image3DZReduced"/>
+<parameter id="ImageMask"/>
+<parameter id="ImageMedian"/>
+<parameter id="Images"/>
+<parameter id="MeasurementRange"/>
+<parameter id="ObjectSceneModel3D"/>
+<parameter id="ObjectSceneModel3D1"/>
+<parameter id="Region"/>
+<parameter id="Second1"/>
+<parameter id="SelectedFirmware"/>
+<parameter id="SelectedModel"/>
+<parameter id="SmoothParamNames"/>
+<parameter id="SmoothParamValues"/>
+<parameter id="height"/>
+<parameter id="offset_x"/>
+<parameter id="offset_y"/>
+<parameter id="scale_x"/>
+<parameter id="scale_y"/>
+<parameter id="width"/>
+</parameters>
+</docu>
+</procedure>
+<procedure name="SurfaceControl_Connection_NEXT2OEM">
+<interface>
+<ic>
+<par name="ButtonIndex" base_type="ctrl" dimension="0"/>
+</ic>
+<oc>
+<par name="AcqHandle" base_type="ctrl" dimension="0"/>
+<par name="SelectedModel" base_type="ctrl" dimension="0"/>
+<par name="MeasurementRange" base_type="ctrl" dimension="0"/>
+<par name="SelectedFirmware" base_type="ctrl" dimension="0"/>
+</oc>
+</interface>
+<body>
+<l>dev_close_window ()</l>
+<c></c>
+<c>* find GigEVision Devices</c>
+<l>info_framegrabber ('GigEvision2', 'info_boards', Information, Devices)</l>
+<c></c>
+<c>* find surfaceCONTROL devices</c>
+<l>tuple_regexp_select (Devices, 'surfaceCONTROL', surfaceCONTROLDevices)</l>
+<c></c>
+<l>Model := []</l>
+<l>Firmware := []</l>
+<l>SN := []</l>
+<l>Status := []</l>
+<l>for i := 0 to |surfaceCONTROLDevices|-1 by 1</l>
+<c>    * Model</c>
+<l>    Substring := str_lastn(surfaceCONTROLDevices[i], strstr(surfaceCONTROLDevices[i], 'model:') + 6)</l>
+<l>    Model[i] := str_firstn(Substring, strchr(Substring, '|') - 1)</l>
+<l>    Model[i] := str_firstn(Model[i], strstr(Model[i], ' ')-1)</l>
+<c></c>
+<c>    * Get IP</c>
+<l>    Substring := str_lastn(surfaceCONTROLDevices[i], strstr(surfaceCONTROLDevices[i], 'device_ip:') + 10)</l>
+<l>    tuple_strchr (Substring, '/', Position)</l>
+<l>    IP[i] := str_firstn(Substring, Position -1)</l>
+<c>    * Get status</c>
+<l>    Substring := str_lastn(surfaceCONTROLDevices[i], strstr(surfaceCONTROLDevices[i], 'status:') + 7)</l>
+<l>    tuple_strchr (Substring, '|', Position)</l>
+<l>    if (Position != -1)</l>
+<l>        Status[i] := str_firstn(Substring, Position - 3)</l>
+<l>    else</l>
+<l>        Status[i] := Substring</l>
+<l>    endif</l>
+<c>    * Get Firmware &amp; SN</c>
+<l>    if (Status[i] == 'available')</l>
+<l>        open_framegrabber ('GigEVision2', 0, 0, 0, 0, 0, 0, 'progressive', -1, 'default', -1, 'false', 'default', surfaceCONTROLDevices[i], 0, -1, AuxHandle)</l>
+<l>        get_framegrabber_param (AuxHandle, 'DeviceFirmwareVersion', FirmwareAux)</l>
+<l>        get_framegrabber_param (AuxHandle, 'DeviceSerialNumber', SNAux)</l>
+<l>        Firmware[i] := FirmwareAux</l>
+<l>        SN[i] := SNAux</l>
+<l>        close_framegrabber (AuxHandle)</l>
+<l>    else</l>
+<l>        Firmware[i] := 'N/A'</l>
+<l>        SN[i] := 'N/A'</l>
+<l>    endif</l>
+<l>endfor</l>
+<c></c>
+<l>ButtonIndex := 0</l>
+<c>* Connect to device</c>
+<l>if (Status[ButtonIndex] != 'available')</l>
+<l>    dev_clear_window ()</l>
+<l>    dev_set_window_extents (-1, -1, 380, 80)</l>
+<l>    dev_disp_text ('Connection not possible.', 'window', 'top', 'left', 'red', [], [])</l>
+<l>    stop ()</l>
+<l>    return ()</l>
+<l>else</l>
+<l>    try</l>
+<l>        open_framegrabber ('GigEVision2', 0, 0, 0, 0, 0, 0, 'progressive', -1, 'default', -1, 'false', 'default', surfaceCONTROLDevices[ButtonIndex], 0, -1, AcqHandle)</l>
+<l>        dev_clear_window ()</l>
+<l>        dev_set_window_extents (-1, -1, 840, 40)</l>
+<l>        Text := Model[ButtonIndex] + ' ' +  Firmware[ButtonIndex] + ' connected (SN:' + SN[ButtonIndex] + ', IP: ' + IP[ButtonIndex] + ')'</l>
+<l>        dev_disp_text (Text, 'window', 'top', 'left', 'black', [], [])</l>
+<c>        * Handover Model</c>
+<l>        if (strstr(Model[ButtonIndex], 'surfaceCONTROL_3D_3500') != -1)</l>
+<l>            SelectedModel := 3500</l>
+<l>        elseif (strstr(Model[ButtonIndex], 'surfaceCONTROL_3D_3510') != -1)</l>
+<l>            SelectedModel := 3510</l>
+<l>        elseif (strstr(Model[ButtonIndex], 'surfaceCONTROL_3D_3200') != -1)</l>
+<l>            SelectedModel := 3200</l>
+<l>        elseif (strstr(Model[ButtonIndex], 'surfaceCONTROL_3D_3210') != -1)</l>
+<l>            SelectedModel := 3210</l>
+<l>        endif</l>
+<c>        * Handover Range</c>
+<l>        if (strstr(Model[ButtonIndex], '_120') != -1)</l>
+<l>            MeasurementRange := 120</l>
+<l>        elseif (strstr(Model[ButtonIndex], '_80') != -1)</l>
+<l>            MeasurementRange := 80</l>
+<l>        endif</l>
+<c>        * Handover Firmware</c>
+<l>        SelectedFirmware := Firmware[ButtonIndex]</l>
+<l>    catch (Exception)</l>
+<l>        dev_set_window_extents (-1, -1, 380, 80)</l>
+<l>        dev_disp_text ('Connection not possible.', 'window', 'top', 'left', 'red', [], [])</l>
+<l>        stop ()</l>
+<l>        return ()</l>
+<l>    endtry</l>
+<l>endif</l>
+<l>return ()</l>
+<l>return ()</l>
+<l>return ()</l>
+</body>
+<docu id="SurfaceControl_Connection_NEXT2OEM">
+<chapters lang="en_US">
+<item>3D VISION</item>
+<item>Connection</item>
+</chapters>
+<library lang="en_US">MVTec Standard Procedures</library>
+<short lang="en_US">Connection of surfaceControl devices with HDevelope</short>
+<parameters>
+<parameter id="AcqHandle"/>
+<parameter id="ButtonIndex">
+<default_type>integer</default_type>
+<default_value>0</default_value>
+<mixed_type>optional</mixed_type>
+<type_list>
+<item>integer</item>
+</type_list>
+<value_max>1</value_max>
+<value_min>-1</value_min>
+<values>
+<item>-1</item>
+<item>0</item>
+<item>1</item>
+</values>
+</parameter>
+<parameter id="MeasurementRange"/>
+<parameter id="SelectedFirmware"/>
+<parameter id="SelectedModel"/>
+</parameters>
+</docu>
+</procedure>
+</hdevelop>

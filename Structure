@@ -1,11 +1,32 @@
 OEM/
-├── data/
-│   └── (Place your .ply files here)
-├── src/
-│   ├── dataset.py       # For loading and preprocessing .ply files
-│   ├── model.py         # DGCNN model definition
-│   ├── train.py         # Training loop and argument parsing
-│   └── utils.py         # (Optional) Utility functions for augmentation, metrics, etc.
-├── environment.yml      # Conda environment specification (optional)
-├── requirements.txt     # Pip requirements (optional)
-└── README.md            # Project overview and instructions
+├── data/                             # All point cloud datasets
+│   ├── raw/                          # Real .ply files labeled via Halcon
+│   ├── synth_labeled/                # Fully synthetic labeled .ply files
+│   └── synthetic_from_test/          # Mixed/test samples (optional: clean later)
+│
+├── halcon/                            # Halcon-based labeling assets
+│   ├── Label.hdev
+│   └── 3d_SurfaceMatching_Plug_1.hdev
+│
+├── src/                               # Source code modules
+│   ├── dataset.py                     # DataLoader for .ply files
+│   ├── model.py                       # DGCNN architecture
+│   ├── train.py                       # Training for segmentation
+│   ├── train_pose.py                  # Training for pose estimation
+│   ├── test.py                        # Evaluation/testing
+│   ├── utils.py                       # Metrics, jittering, logging
+│   ├── synthetic_data_gen.py          # Synthetic .ply generator
+│   ├── synthetic_data_gen_with_labels.py
+│   └── __init__.py                    # Makes this a package
+│
+├── experiments/                       # Experiment tracking
+│   ├── plots/                         # Loss curves, accuracy, pose error
+│   └── notes/                         # Manual experiment summaries
+│       ├── experiment_01_baseline.txt
+│       └── experiment_02_pose_tuning.txt
+│
+├── environment.yml                    # Conda environment file
+├── README.md                          # Project overview and how-to-run
+├── main.py                            # runner script for entire pipeline
+└── report/
+    └── Surface_Matching_Report.docx

@@ -1,16 +1,35 @@
-# This is a sample Python script.
+# main.py
 
-# Press ⌃R to execute it or replace it with your code.
-# Press Double ⇧ to search everywhere for classes, files, tool windows, actions, and settings.
+import argparse
+import os
 
+def train_segmentation():
+    print("[INFO] Starting segmentation training...")
+    os.system("python src/train.py --train_files data/raw/*.ply --epochs 20 --batch_size 8")
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press ⌘F8 to toggle the breakpoint.
+def train_pose():
+    print("[INFO] Starting pose estimation training...")
+    os.system("python src/train_pose.py --train_files data/synth_labeled/*.ply --epochs 30 --batch_size 4")
 
+def run_test():
+    print("[INFO] Running test script...")
+    os.system("python src/test.py")
 
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    print_hi('PyCharm')
+def generate_synthetic():
+    print("[INFO] Generating synthetic data...")
+    os.system("python src/synthetic_data_gen_with_labels.py")
 
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Surface Matching Project Entry Point")
+    parser.add_argument('--task', type=str, required=True, choices=['train_seg', 'train_pose', 'test', 'generate'],
+                        help="Which task to run: train_seg, train_pose, test, generate")
+    args = parser.parse_args()
+
+    if args.task == 'train_seg':
+        train_segmentation()
+    elif args.task == 'train_pose':
+        train_pose()
+    elif args.task == 'test':
+        run_test()
+    elif args.task == 'generate':
+        generate_synthetic()

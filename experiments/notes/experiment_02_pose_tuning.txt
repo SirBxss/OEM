@@ -1,0 +1,15 @@
+Model: DGCNN (Pose Estimation)
+Dataset: data/synth_labeled/*.ply
+Epochs: 30
+Batch Size: 4
+Learning Rate: 0.0005
+Loss Function: Combined Rotation + Translation (MSE)
+Rotation Loss (Final): 1.08
+Translation Loss (Final): 0.033
+Observations:
+- Lower LR improved stability for pose regression.
+- Rotation loss fluctuated initially but stabilized after epoch 10.
+- Significant improvement after switching to normalized coordinates.
+- Translation prediction is more accurate than rotation.
+- Future tuning: experiment with quaternion-based loss or data augmentation.
+
